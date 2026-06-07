@@ -2,7 +2,7 @@
 # https://github.com/P3TERX/Actions-OpenWrt
 #
 # File: .github/workflows/openwrt-bulder.yml
-# Description: Build OpenWrt using GitHub Actions
+# Description: Build ImmortalWrt MT798x 24.10 for JCG Q30 Pro
 #
 # Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
 #
@@ -10,15 +10,16 @@
 # See /LICENSE for more information.
 #
 
-name: OpenWrt Builder
+name: ImmortalWrt MT798x Builder
 
 on:
   repository_dispatch:
   workflow_dispatch:
 
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
+  # ========== 修改 1：源码地址改成 padavanonly 官方 ==========
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+  REPO_BRANCH: openwrt-24.10-6.6
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
@@ -73,7 +74,12 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
-        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        # ========== 修改 2：如果没有上传 .config，自动使用 MT7981 默认配置 ==========
+        if [ -e $CONFIG_FILE ]; then
+          mv $CONFIG_FILE openwrt/.config
+        else
+          cp openwrt/defconfig/mt7981-ax3000.config openwrt/.config
+        fi
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
@@ -131,7 +137,9 @@ jobs:
       run: |
         echo "release_tag=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_OUTPUT
         touch release.txt
-        [ ${UPLOAD_GOFILE} = true && ${{ steps.gofile.outputs.url }} ] && echo "🔗 [GoFile](${{ steps.gofile.outputs.url }})" >> release.txt
+        echo "ImmortalWrt MT798x 24.10 for JCG Q30 Pro" >> release.txt
+        echo "Source: padavanonly/immortalwrt-mt798x-24.10" >> release.txt
+        echo "Branch: $REPO_BRANCH" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware to release
