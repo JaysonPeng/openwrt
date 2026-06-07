@@ -4,11 +4,6 @@
 # File: .github/workflows/openwrt-bulder.yml
 # Description: Build ImmortalWrt MT798x 24.10 for JCG Q30 Pro
 #
-# Copyright (c) 2019-2024 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
 
 name: ImmortalWrt MT798x Builder
 
@@ -17,7 +12,6 @@ on:
   workflow_dispatch:
 
 env:
-  # ========== 修改 1：源码地址改成 padavanonly 官方 ==========
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-24.10
   REPO_BRANCH: openwrt-24.10-6.6
   FEEDS_CONF: feeds.conf.default
@@ -61,9 +55,14 @@ jobs:
     - name: Load custom feeds
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
-        chmod +x $DIY_P1_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P1_SH
+        # ========== 修复：只有 diy-part1.sh 存在时才执行 ==========
+        if [ -e $DIY_P1_SH ]; then
+          chmod +x $DIY_P1_SH
+          cd openwrt
+          $GITHUB_WORKSPACE/$DIY_P1_SH
+        else
+          echo ">>> diy-part1.sh 不存在，跳过"
+        fi
 
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
@@ -74,15 +73,24 @@ jobs:
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
-        # ========== 修改 2：如果没有上传 .config，自动使用 MT7981 默认配置 ==========
-        if [ -e $CONFIG_FILE ]; then
-          mv $CONFIG_FILE openwrt/.config
+        
+        # 检查用户是否上传了自定义 .config
+        if [ -e "$CONFIG_FILE" ]; then
+          echo ">>> 使用用户上传的 .config"
+          mv "$CONFIG_FILE" openwrt/.config
         else
+          echo ">>> 用户未上传 .config，使用官方默认 MT7981 配置"
           cp openwrt/defconfig/mt7981-ax3000.config openwrt/.config
         fi
-        chmod +x $DIY_P2_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P2_SH
+        
+        # ========== 修复：只有 diy-part2.sh 存在时才执行 ==========
+        if [ -e $DIY_P2_SH ]; then
+          chmod +x $DIY_P2_SH
+          cd openwrt
+          $GITHUB_WORKSPACE/$DIY_P2_SH
+        else
+          echo ">>> diy-part2.sh 不存在，跳过"
+        fi
 
     - name: Download package
       id: package
