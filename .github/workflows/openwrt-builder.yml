@@ -11,7 +11,9 @@ on:
   repository_dispatch:
   workflow_dispatch:
 
+# ========== 新增：强制使用 Node.js 24，解决弃用警告 ==========
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-24.10
   REPO_BRANCH: openwrt-24.10-6.6
   FEEDS_CONF: feeds.conf.default
@@ -28,8 +30,9 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+    # ========== 修改：使用 v4 版本号，不再用 @main ==========
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
     - name: Initialization environment
       env:
@@ -55,7 +58,6 @@ jobs:
     - name: Load custom feeds
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
-        # ========== 修复：只有 diy-part1.sh 存在时才执行 ==========
         if [ -e $DIY_P1_SH ]; then
           chmod +x $DIY_P1_SH
           cd openwrt
@@ -74,7 +76,6 @@ jobs:
       run: |
         [ -e files ] && mv files openwrt/files
         
-        # 检查用户是否上传了自定义 .config
         if [ -e "$CONFIG_FILE" ]; then
           echo ">>> 使用用户上传的 .config"
           mv "$CONFIG_FILE" openwrt/.config
@@ -83,7 +84,6 @@ jobs:
           cp openwrt/defconfig/mt7981-ax3000.config openwrt/.config
         fi
         
-        # ========== 修复：只有 diy-part2.sh 存在时才执行 ==========
         if [ -e $DIY_P2_SH ]; then
           chmod +x $DIY_P2_SH
           cd openwrt
@@ -108,16 +108,22 @@ jobs:
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 || make -j1 V=s
         echo "status=success" >> $GITHUB_OUTPUT
-        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        
+        # 只取第一个设备名，避免多行导致 GITHUB_ENV 格式错误
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' | head -n 1 > DEVICE_NAME
+        if [ -s DEVICE_NAME ]; then
+          DEVICE_NAME_VAL=$(cat DEVICE_NAME | tr -d '\n\r')
+          echo "DEVICE_NAME=_${DEVICE_NAME_VAL}" >> $GITHUB_ENV
+        fi
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
     - name: Check space usage
       if: (!cancelled())
       run: df -hT
 
+    # ========== 修改：使用 v4 版本号 ==========
     - name: Upload bin directory
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -132,8 +138,9 @@ jobs:
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "status=success" >> $GITHUB_OUTPUT
 
+    # ========== 修改：使用 v4 版本号 ==========
     - name: Upload firmware directory
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -150,8 +157,9 @@ jobs:
         echo "Branch: $REPO_BRANCH" >> release.txt
         echo "status=success" >> $GITHUB_OUTPUT
 
+    # ========== 修改：使用 v2 版本号 ==========
     - name: Upload firmware to release
-      uses: softprops/action-gh-release@master
+      uses: softprops/action-gh-release@v2
       if: steps.tag.outputs.status == 'success' && !cancelled()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -160,14 +168,16 @@ jobs:
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
 
+    # ========== 修改：使用 v2 版本号 ==========
     - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@main
+      uses: Mattraks/delete-workflow-runs@v2
       with:
         retain_days: 0
         keep_minimum_runs: 2
 
+    # ========== 修改：使用 v0.3.4 版本号 ==========
     - name: Remove old Releases
-      uses: dev-drprasad/delete-older-releases@master
+      uses: dev-drprasad/delete-older-releases@v0.3.4
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
         keep_latest: 3
